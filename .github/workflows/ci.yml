@@ -97,7 +97,10 @@ jobs:
 
           changed plugin \
             'plugin/**' \
-            '.claude-plugin/**'
+            '.claude-plugin/**' \
+            '.agents/plugins/**' \
+            '.github/scripts/validate_agent_plugin.py' \
+            '.github/schemas/agent-plugins/**'
 
           changed plugin_release \
             'plugin/VERSION' \
@@ -413,19 +416,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Validate plugin metadata and skills
-        run: |
-          jq -e '.name and .version and .description and .repository' plugin/.claude-plugin/plugin.json >/dev/null
-          test -d plugin/skills
-          count=$(find plugin/skills -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
-          if [ "$count" -lt 1 ]; then
-            echo "ERROR: expected at least one plugin skill"
-            exit 1
-          fi
-          find plugin/skills -mindepth 2 -maxdepth 2 -name SKILL.md -print0 | while IFS= read -r -d '' file; do
-            grep -q '^---' "$file" || { echo "Missing frontmatter: $file"; exit 1; }
-            grep -q '^description:' "$file" || { echo "Missing description in $file"; exit 1; }
-          done
+      - name: Install plugin validation dependencies
+        run: python3 -m pip install 'jsonschema==4.26.0' 'PyYAML==6.0.3'
+
+      - name: Validate portable package and client catalogs
+        run: python3 .github/scripts/validate_agent_plugin.py
+
+      - name: Validate Claude compatibility metadata
+        run: jq -e '.name and .version and .description and .repository' plugin/.claude-plugin/plugin.json >/dev/null
 
   npm-check:
     name: npm package check

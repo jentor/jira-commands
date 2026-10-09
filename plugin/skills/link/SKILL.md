@@ -1,4 +1,5 @@
 ---
+name: link
 description: Manage Jira issue links (blocks, relates, duplicates, etc.) with jirac — list link types, add a link, or delete an existing link
 ---
 

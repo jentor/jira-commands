@@ -1,4 +1,5 @@
 ---
+name: delete-issue
 description: Permanently delete a Jira issue with jirac, with optional force flag to skip confirmation
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: update-issue
 description: Update existing Jira issues with jirac, including summary, description, assignee, priority, labels, components, fix versions, and custom fields
 ---
 

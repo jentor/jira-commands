@@ -1,4 +1,5 @@
 ---
+name: api
 description: Execute a raw Jira REST API call through the jirac CLI, including GET, POST, PUT, DELETE, and PATCH requests to any Jira REST endpoint
 ---
 

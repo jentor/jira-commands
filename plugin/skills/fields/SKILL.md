@@ -1,4 +1,5 @@
 ---
+name: fields
 description: Inspect Jira field metadata with jirac for a project and issue type, especially before create or update flows that use custom fields or backlog-specific schemas
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: create-issue
 description: Create new Jira issues with jirac, including interactive prompts for project, issue type, summary, and custom fields
 ---
 

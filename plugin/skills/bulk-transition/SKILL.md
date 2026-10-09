@@ -1,4 +1,5 @@
 ---
+name: bulk-transition
 description: Bulk transition multiple Jira issues with a JQL filter through the jirac CLI
 ---
 

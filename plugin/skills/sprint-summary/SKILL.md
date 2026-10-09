@@ -1,4 +1,5 @@
 ---
+name: sprint-summary
 description: Summarize the current or named Jira sprint by status and assignee using jirac
 ---
 

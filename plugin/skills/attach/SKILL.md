@@ -1,4 +1,5 @@
 ---
+name: attach
 description: Upload local files as Jira issue attachments through the jirac CLI
 ---
 

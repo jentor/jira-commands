@@ -1,4 +1,5 @@
 ---
+name: move-issue
 description: Move a Jira issue to another project using Jira's native move semantics with jirac (not clone+delete)
 ---
 

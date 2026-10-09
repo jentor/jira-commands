@@ -1,4 +1,5 @@
 ---
+name: jql
 description: Build or run Jira JQL queries with jirac, either directly from a query string or through the interactive JQL helper
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: clone-issue
 description: Clone a Jira issue with jirac, optionally into another project or with a new summary and assignee
 ---
 

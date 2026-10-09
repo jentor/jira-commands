@@ -1,4 +1,5 @@
 ---
+name: daily-standup
 description: Generate a markdown-ready daily standup summary from assigned Jira issues using jirac
 ---
 

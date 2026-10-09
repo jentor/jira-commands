@@ -1,4 +1,5 @@
 ---
+name: view-issue
 description: View full Jira issue details with jirac, including description, attachments, and other issue metadata
 ---
 

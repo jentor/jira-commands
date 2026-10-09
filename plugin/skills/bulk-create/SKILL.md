@@ -1,4 +1,5 @@
 ---
+name: bulk-create
 description: Create multiple Jira issues at once from a JSON manifest file using jirac bulk-create
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: transition
 description: Transition Jira issues to a new workflow state with jirac, either directly or through the interactive transition picker
 ---
 

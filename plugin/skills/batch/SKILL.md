@@ -1,4 +1,5 @@
 ---
+name: batch
 description: Run mixed Jira operations (create, update, transition, archive) from a single JSON manifest file using jirac batch
 ---
 

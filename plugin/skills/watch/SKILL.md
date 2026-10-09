@@ -1,4 +1,5 @@
 ---
+name: watch
 description: Manage Jira issue watchers with jirac, including adding the current user as a watcher, listing watchers, and removing a watcher by accountId
 ---
 

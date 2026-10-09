@@ -1,37 +1,27 @@
-# Claude Code Plugin
+# Jira Agent Plugin
 
-The `jirac` Claude Code plugin exposes Jira operations as slash commands inside Claude Code. The plugin namespace is `/jira:*`.
+The `plugin/` package supplies Jira CLI skills in the portable [Agent Plugins 1.0.0](https://agent-plugins.org/specification) format. Codex and Cursor load the root manifest; Claude Code continues to use the compatibility manifest and `/jira:*` namespace.
 
-The Claude Code plugin has its own release lane under `plugin/`, with dedicated `plugin/VERSION` and `plugin/CHANGELOG.md` files. ClawHub publishing is separate: the `clawhub/jirac/` skill ships independently, and the `clawhub/jirac-plugin/` wrapper package points back to `plugin/` for ClawHub package publishing.
+The plugin has its own version under `plugin/VERSION`. ClawHub packaging and release flow remain separate.
 
 ## Setup
 
-```bash
-# 1. Install the CLI that the plugin calls
-cargo install jira-commands
-jirac auth login
-```
-
-```text
-# 2. In Claude Code
-/plugin marketplace add mulhamna/jira-commands
-/plugin install jira@jira-commands
-```
+Install `jira-commands`, run `jirac auth login`, then follow the [client-specific installation instructions](plugin/README.md#installation). Only `jirac` must be on the client's `PATH`. MCP is an optional, separately installed integration; the plugin does not start it.
 
 ## Available skills
 
 | Skill                   | Description                             |
 | ----------------------- | --------------------------------------- |
-| `/jira:list-issues`     | List issues by project or JQL           |
-| `/jira:view-issue`      | View full issue detail                  |
-| `/jira:checklist`       | Manage Smart Checklist items, history, and templates (runtime opt-in) |
-| `/jira:create-issue`    | Create a new issue                      |
-| `/jira:update-issue`    | Update an existing issue                |
-| `/jira:transition`      | Transition an issue                     |
-| `/jira:comment`         | List comments or add a Markdown comment |
-| `/jira:worklog`         | List, add, or delete worklogs           |
-| `/jira:fields`          | Inspect available field metadata        |
-| `/jira:bulk-transition` | Bulk transition issues via JQL          |
-| `/jira:attach`          | Upload a file to an issue               |
-| `/jira:jql`             | Build and run a JQL query               |
-| `/jira:api`             | Raw REST API passthrough                |
+| `list-issues`     | List issues by project or JQL           |
+| `view-issue`      | View full issue detail                  |
+| `checklist`       | Manage Smart Checklist items, history, and templates (runtime opt-in) |
+| `create-issue`    | Create a new issue                      |
+| `update-issue`    | Update an existing issue                |
+| `transition`      | Transition an issue                     |
+| `comment`         | List comments or add a Markdown comment |
+| `worklog`         | List, add, or delete worklogs           |
+| `fields`          | Inspect available field metadata        |
+| `bulk-transition` | Bulk transition issues via JQL          |
+| `attach`          | Upload a file to an issue               |
+| `jql`             | Build and run a JQL query               |
+| `api`             | Raw REST API passthrough                |

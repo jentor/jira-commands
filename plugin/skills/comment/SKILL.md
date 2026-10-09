@@ -1,4 +1,5 @@
 ---
+name: comment
 description: Manage Jira issue comments with jirac, including listing existing comments and adding a new Markdown comment to an issue
 ---
 

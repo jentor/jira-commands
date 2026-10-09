@@ -1,4 +1,5 @@
 ---
+name: list-issues
 description: List Jira issues with jirac by project, assignee, or custom JQL, including the default current-user flow
 ---
 

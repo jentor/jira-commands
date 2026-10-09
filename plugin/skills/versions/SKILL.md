@@ -1,4 +1,5 @@
 ---
+name: versions
 description: Browse Jira project fix versions, preview their backlog items, or update version metadata with jirac
 ---
 

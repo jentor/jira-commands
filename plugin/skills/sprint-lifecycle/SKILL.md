@@ -1,4 +1,5 @@
 ---
+name: sprint-lifecycle
 description: Manage Jira sprint lifecycle with jirac — list, create, start, complete, update, or delete sprints for a project
 ---
 

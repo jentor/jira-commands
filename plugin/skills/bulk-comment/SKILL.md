@@ -1,4 +1,5 @@
 ---
+name: bulk-comment
 description: Add the same Markdown comment to multiple Jira issues with jirac, either by JQL query or explicit issue keys
 ---
 

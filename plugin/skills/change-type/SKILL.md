@@ -1,4 +1,5 @@
 ---
+name: change-type
 description: Change a Jira issue to another issue type using Jira's native move semantics with jirac
 ---
 

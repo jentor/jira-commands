@@ -1,4 +1,5 @@
 ---
+name: render
 description: Render and validate Markdown content as Jira ADF with jirac before sending it to Jira as a description or comment
 ---
 

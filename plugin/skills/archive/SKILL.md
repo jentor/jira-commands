@@ -1,4 +1,5 @@
 ---
+name: archive
 description: Archive Jira issues matching a JQL query with jirac
 ---
 

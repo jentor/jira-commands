@@ -409,13 +409,13 @@ export JIRA_TOKEN=your_api_token
 export JIRA_CA_BUNDLE=/path/to/internal-ca.pem
 ```
 
-## Claude Code plugin skills
+## Agent plugin skills
 
-The [Claude Code plugin](plugin/README.md) exposes Jira workflows as `/jira:*` skills.
+The [Jira agent plugin](plugin/README.md) packages CLI skills for Codex, Cursor, and other Agent Plugins clients. MCP is installed and registered separately when requested. Claude Code remains supported through its compatibility manifest and `/jira:*` skills. See the [installation instructions](plugin/README.md#installation).
 
 | Skill | Description |
 | --- | --- |
-| `/jira:checklist` | Manage Smart Checklist Data Center items, history, and templates when enabled in the active profile |
+| `checklist` | Manage Smart Checklist Data Center items, history, and templates when enabled in the active profile |
 
 See the [full skill catalog](plugin/README.md#skills).
 

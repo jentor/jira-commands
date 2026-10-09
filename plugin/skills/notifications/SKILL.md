@@ -1,4 +1,5 @@
 ---
+name: notifications
 description: Scan recent Jira @mention notifications from issue descriptions and comments using jirac
 ---
 

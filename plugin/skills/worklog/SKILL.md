@@ -1,4 +1,5 @@
 ---
+name: worklog
 description: Manage Jira worklogs with jirac, including list, add, and delete flows for issue time tracking
 ---
 

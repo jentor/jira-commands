@@ -1,4 +1,5 @@
 ---
+name: bulk-update
 description: Bulk update assignee or priority on multiple Jira issues matching a JQL query with jirac
 ---
 

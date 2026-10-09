@@ -1,0 +1,20 @@
+{
+  "name": "jira-commands",
+  "interface": {
+    "displayName": "Jira Commands"
+  },
+  "plugins": [
+    {
+      "name": "jira",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
