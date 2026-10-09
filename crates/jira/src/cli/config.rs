@@ -6,9 +6,8 @@ use jira_core::config::{config_file_path, JiraConfig, JiraProfilesFile};
 pub enum ConfigCommand {
     /// Set a configuration value for the active profile
     ///
-    /// Currently supports `default_issue_limit`, the default cap (in number of
-    /// issues) applied by list-like commands when no explicit `--limit` is
-    /// given. Set to `0` to clear (fetch everything).
+    /// Supports `default_issue_limit` (0 means fetch all) and
+    /// `smart_checklist_enabled` (true/false, disabled by default).
     Set {
         /// Configuration key (e.g. default_issue_limit)
         key: String,
@@ -16,7 +15,7 @@ pub enum ConfigCommand {
         value: String,
     },
     /// Remove a configuration value for the active profile,
-    /// restoring the built-in default (fetch everything)
+    /// restoring its built-in default
     Unset {
         /// Configuration key (e.g. default_issue_limit)
         key: String,
@@ -35,6 +34,17 @@ pub async fn handle(cmd: ConfigCommand) -> Result<()> {
 
 fn set_value(key: &str, value: &str) -> Result<()> {
     match key {
+        "smart_checklist_enabled" => {
+            let enabled = value
+                .trim()
+                .parse::<bool>()
+                .context("`smart_checklist_enabled` must be true or false")?;
+            let mut config = JiraConfig::load()?;
+            config.smart_checklist_enabled = enabled;
+            config.save().context("Failed to save config")?;
+            println!("✓ smart_checklist_enabled = {enabled}");
+            println!("  Saved to {}", config_file_path().display());
+        }
         "default_issue_limit" => {
             let parsed = value.trim().parse::<u32>().map_err(|_| {
                 anyhow::anyhow!("`default_issue_limit` must be a non-negative integer")
@@ -49,7 +59,7 @@ fn set_value(key: &str, value: &str) -> Result<()> {
             println!("  Saved to {}", config_file_path().display());
         }
         other => {
-            anyhow::bail!("unsupported config key `{other}`. Supported: default_issue_limit")
+            anyhow::bail!("unsupported config key `{other}`. Supported: default_issue_limit, smart_checklist_enabled")
         }
     }
     Ok(())
@@ -57,13 +67,19 @@ fn set_value(key: &str, value: &str) -> Result<()> {
 
 fn unset_value(key: &str) -> Result<()> {
     match key {
+        "smart_checklist_enabled" => {
+            let mut config = JiraConfig::load()?;
+            config.smart_checklist_enabled = false;
+            config.save().context("Failed to save config")?;
+            println!("✓ smart_checklist_enabled removed (disabled)");
+        }
         "default_issue_limit" => {
             let mut config = JiraConfig::load().unwrap_or_default();
             config.default_issue_limit = None;
             config.save().context("Failed to save config")?;
             println!("✓ default_issue_limit removed (will fetch all issues)");
         }
-        other => anyhow::bail!("unsupported config key `{other}`. Supported: default_issue_limit"),
+        other => anyhow::bail!("unsupported config key `{other}`. Supported: default_issue_limit, smart_checklist_enabled"),
     }
     Ok(())
 }
@@ -93,6 +109,10 @@ fn show() -> Result<()> {
             .default_issue_limit
             .map(|n| n.to_string())
             .unwrap_or_else(|| "unset (fetch all)".into())
+    );
+    println!(
+        "smart_checklist_enabled: {}",
+        config.smart_checklist_enabled
     );
 
     let _ = JiraProfilesFile::load(); // validate load path

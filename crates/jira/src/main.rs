@@ -35,6 +35,11 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Manage Smart Checklist Data Center checklists, history, and templates (Default tab only)
+    Checklist {
+        #[command(subcommand)]
+        command: cli::checklist::ChecklistCommand,
+    },
     Issue {
         #[command(subcommand)]
         command: Box<cli::issue::IssueCommand>,
@@ -120,6 +125,11 @@ async fn main() -> Result<()> {
     };
 
     match command {
+        Commands::Checklist { command } => {
+            JiraConfig::load()?.ensure_smart_checklist_enabled()?;
+            let client = build_client().context("Failed to initialize Jira client")?;
+            cli::checklist::handle(command, client).await?;
+        }
         Commands::Auth { command } => {
             cli::auth::handle(command).await?;
         }

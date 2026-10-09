@@ -46,6 +46,7 @@ Jira on the command line.
 - **Bulk operations** — comment, transition, update, archive, or create many issues from JQL, explicit issue keys, or JSON manifests
 - **JQL builder** — interactive prompt that helps you construct queries
 - **Raw API passthrough** — call any Jira REST endpoint directly
+- **Smart Checklist Data Center** — native checklist items, history, and global/project templates in CLI and MCP (Default Checklist tab)
 - **MCP server** — expose Jira as typed tools for editors and AI agents ([docs](crates/jira-mcp/README.md))
 
 ## Comparison
@@ -243,6 +244,77 @@ jirac issue jql --params @query.json --run                         # load params
 
 The builder composes JQL through `jira_core::jql::compose_jql`, escaping user-supplied values and rejecting control characters / unsafe field names. The same structured `JqlParams` schema is exposed over MCP as the `jira_jql_build` tool.
 
+### Smart Checklist (Data Center)
+
+Uses your existing Jira authentication profile and the public `/rest/railsware/1.0` API.
+All operations address the **Default Checklist tab**; additional tabs and the TUI are not supported.
+The integration is disabled by default. Enable it for the active profile at runtime:
+
+```bash
+jirac config set smart_checklist_enabled true
+jirac config show
+```
+
+Use `jirac config set smart_checklist_enabled false` or `jirac config unset smart_checklist_enabled` to disable it.
+The equivalent TOML setting is `smart_checklist_enabled = true` inside the selected `[profiles.NAME]` section.
+Disabled native operations fail before any Jira request. Restart `jirac-mcp` after changing the setting to refresh its advertised tools.
+
+```bash
+jirac checklist view PROJ-123
+jirac checklist view PROJ-123 --json
+jirac issue view PROJ-123 --checklist
+jirac checklist history PROJ-123
+jirac checklist append PROJ-123 --text '- Review @developer'
+jirac checklist append PROJ-123 --file checklist.txt
+jirac checklist update PROJ-123 102 --status-id 37 --mandatory false
+jirac checklist update PROJ-123 --file updates.json
+jirac checklist replace PROJ-123 --file checklist.txt --force
+jirac checklist clear PROJ-123 --force
+
+jirac checklist template list --query Release
+jirac checklist template list --project-id 10000
+jirac checklist template list --project-id 10000 --global
+jirac checklist template view 2 --json
+jirac checklist template fields --json
+jirac checklist template create --file template.json
+jirac checklist template update 2 --file template.json
+jirac checklist template apply PROJ-123 2
+jirac checklist template delete 2 --project-id 10000 --force
+```
+
+Commands accept `--json` for structured output. Text and JSON input files accept `--file -` for stdin.
+Checklist text is passed unchanged, including headings, lists, mentions, and explanations; it is not converted to ADF.
+Item/status IDs appear in `checklist view`; status IDs depend on your instance and are never hardcoded.
+`update --file` expects a JSON array, for example:
+
+```json
+[{"id":102,"status":{"id":37}},{"id":101,"label":"Preparation","rank":0,"level":2}]
+```
+
+Template create/update use the plugin's JSON format, with `name` and `scope` required:
+
+```json
+{
+  "name": "Release",
+  "value": "# Preparation\n- Review\n- Deploy\n",
+  "enabled": true,
+  "scope": {"type": 2, "values": ["10000"]},
+  "projectId": 10000,
+  "conditions": [],
+  "trigger": {"type": 3, "preventDuplicates": false}
+}
+```
+
+Template listings collect all pages (maximum 500); `--page N` fetches one page.
+Use `--order-by name|enabled|issueTypes|projects` and `--reversed` to sort.
+When multiple checklists are returned, mutations require `--checklist-id` to choose one.
+Replace, clear, and template delete prompt for confirmation; scripts must pass `--force`.
+History requires Smart Checklist 6.5.0+. Server permissions and plugin errors are returned unchanged;
+there is no fallback to replacing a custom field. Deleting an individual item is not exposed by this public API;
+`replace` and `clear` explicitly operate on the whole checklist.
+
+See the [Railsware REST API reference](https://railsware.atlassian.net/wiki/spaces/CHKSDC/pages/3238854657/Smart%2BChecklist%2BREST%2BAPI%2Bv1.0).
+
 ### Raw API passthrough
 
 ```bash
@@ -319,6 +391,7 @@ deployment = "data_center"
 auth_type = "datacenter_pat"
 api_version = 2
 ca_bundle = "/path/to/internal-ca.pem"
+smart_checklist_enabled = false # Optional integration; enable only for profiles using the plugin
 ```
 
 `ca_bundle` is optional — point it at a PEM file with your CA certificate(s) when
@@ -335,6 +408,16 @@ export JIRA_EMAIL=you@example.com
 export JIRA_TOKEN=your_api_token
 export JIRA_CA_BUNDLE=/path/to/internal-ca.pem
 ```
+
+## Claude Code plugin skills
+
+The [Claude Code plugin](plugin/README.md) exposes Jira workflows as `/jira:*` skills.
+
+| Skill | Description |
+| --- | --- |
+| `/jira:checklist` | Manage Smart Checklist Data Center items, history, and templates when enabled in the active profile |
+
+See the [full skill catalog](plugin/README.md#skills).
 
 ## MCP server
 

@@ -67,6 +67,9 @@ pub struct JiraConfig {
     /// talking to a self-hosted Jira presenting a cert from an internal CA.
     #[serde(default)]
     pub ca_bundle: Option<String>,
+    /// Enable the optional Smart Checklist Data Center integration for this profile.
+    #[serde(default)]
+    pub smart_checklist_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +93,8 @@ pub struct JiraProfileConfig {
     /// Optional path to a PEM file with extra CA certificate(s) to trust.
     #[serde(default)]
     pub ca_bundle: Option<String>,
+    #[serde(default)]
+    pub smart_checklist_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -106,6 +111,8 @@ struct LegacyJiraConfig {
     pub token: Option<String>,
     pub project: Option<String>,
     pub timeout_secs: u64,
+    #[serde(default)]
+    pub smart_checklist_enabled: bool,
 }
 
 fn default_api_version() -> u8 {
@@ -126,6 +133,7 @@ impl Default for JiraConfig {
             api_version: default_api_version(),
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         }
     }
 }
@@ -151,6 +159,7 @@ impl From<JiraProfileConfig> for JiraConfig {
             api_version,
             default_issue_limit: value.default_issue_limit,
             ca_bundle: value.ca_bundle,
+            smart_checklist_enabled: value.smart_checklist_enabled,
         }
     }
 }
@@ -198,6 +207,7 @@ impl JiraConfig {
             api_version,
             default_issue_limit: self.default_issue_limit,
             ca_bundle: self.ca_bundle,
+            smart_checklist_enabled: self.smart_checklist_enabled,
         }
     }
 
@@ -221,6 +231,15 @@ impl JiraConfig {
             .as_deref()
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false)
+    }
+
+    pub fn ensure_smart_checklist_enabled(&self) -> Result<()> {
+        if !self.smart_checklist_enabled {
+            return Err(JiraError::Config(
+                "Smart Checklist is disabled for this profile. Enable it with `jirac config set smart_checklist_enabled true`.".into(),
+            ));
+        }
+        Ok(())
     }
 
     pub fn requires_user_identity(&self) -> bool {
@@ -363,6 +382,7 @@ impl JiraProfilesFile {
                 api_version: default_api_version(),
                 default_issue_limit: None,
                 ca_bundle: None,
+                smart_checklist_enabled: legacy.smart_checklist_enabled,
             },
         );
 
@@ -535,7 +555,41 @@ timeout_secs = 55
         assert_eq!(config.base_url, "https://example.atlassian.net");
         assert_eq!(config.auth_type, JiraAuthType::CloudApiToken);
         assert_eq!(config.api_version, 3);
+        assert!(!config.smart_checklist_enabled);
 
+        clear_config_home();
+    }
+
+    #[test]
+    fn checklist_feature_is_profile_scoped_and_round_trips() {
+        let _guard = env_lock().lock().expect("env lock");
+        let temp_dir = TempDir::new().expect("tempdir");
+        clear_config_home();
+        set_config_home(&temp_dir);
+        assert!(!JiraConfig::load().unwrap().smart_checklist_enabled);
+        let enabled = JiraConfig {
+            profile_name: Some("checklists".into()),
+            smart_checklist_enabled: true,
+            ..Default::default()
+        };
+        enabled.save().unwrap();
+        assert!(JiraConfig::load().unwrap().smart_checklist_enabled);
+        assert!(enabled.clone().into_profile().smart_checklist_enabled);
+        JiraConfig {
+            profile_name: Some("plain".into()),
+            ..Default::default()
+        }
+        .save()
+        .unwrap();
+        assert!(!JiraConfig::load().unwrap().smart_checklist_enabled);
+        let mut store = JiraProfilesFile::load().unwrap();
+        store.set_current_profile("checklists").unwrap();
+        store.save().unwrap();
+        assert!(JiraConfig::load().unwrap().smart_checklist_enabled);
+        let mut config = JiraConfig::load().unwrap();
+        config.smart_checklist_enabled = false;
+        config.save().unwrap();
+        assert!(!JiraConfig::load().unwrap().smart_checklist_enabled);
         clear_config_home();
     }
 
@@ -633,6 +687,7 @@ ca_bundle = "/etc/ssl/internal-ca.pem"
                         api_version: 3,
                         default_issue_limit: None,
                         ca_bundle: None,
+                        smart_checklist_enabled: false,
                     },
                 ),
                 (
@@ -648,6 +703,7 @@ ca_bundle = "/etc/ssl/internal-ca.pem"
                         api_version: 2,
                         default_issue_limit: None,
                         ca_bundle: None,
+                        smart_checklist_enabled: false,
                     },
                 ),
             ]),

@@ -76,6 +76,178 @@ fn sample_issue() -> Value {
 
 #[tokio::test]
 #[serial]
+async fn checklist_destructive_tools_require_force_before_loading_credentials() {
+    use crate::models::{ChecklistClearArgs, ChecklistReplaceArgs, ChecklistTemplateDeleteArgs};
+    let err = JiraApp
+        .checklist_clear(
+            serde_json::from_value::<ChecklistClearArgs>(
+                json!({"issue_key":"PROJ-1","force":false}),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_mcp().message, "unsafe_operation");
+    let err = JiraApp
+        .checklist_replace(
+            serde_json::from_value::<ChecklistReplaceArgs>(
+                json!({"issue_key":"PROJ-1","text":"- New"}),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_mcp().message, "unsafe_operation");
+    let err = JiraApp
+        .checklist_template_delete(
+            serde_json::from_value::<ChecklistTemplateDeleteArgs>(json!({"template_id":2}))
+                .unwrap(),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(err.to_mcp().message, "unsafe_operation");
+}
+
+#[tokio::test]
+#[serial]
+async fn disabled_checklist_feature_blocks_mcp_tools_and_opt_in_issue_view() {
+    use crate::models::{ChecklistTargetArgs, IssueViewArgs};
+    let temp_dir = TempDir::new().unwrap();
+    let server = MockServer::start().await;
+    set_test_env(&temp_dir, Some(&server.uri()));
+    let err = JiraApp
+        .checklist_view(ChecklistTargetArgs {
+            issue_key: "PROJ-123".into(),
+            checklist_id: None,
+        })
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Smart Checklist is disabled"));
+    let err = JiraApp
+        .issue_view(IssueViewArgs {
+            key: "PROJ-123".into(),
+            include_checklist: Some(true),
+        })
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Smart Checklist is disabled"));
+    assert!(server.received_requests().await.unwrap().is_empty());
+    clear_test_env();
+}
+
+#[tokio::test]
+#[serial]
+async fn checklist_mcp_updates_translate_status_ids_without_replacing_other_fields() {
+    use crate::models::ChecklistUpdateArgs;
+    let temp_dir = TempDir::new().unwrap();
+    let server = MockServer::start().await;
+    set_test_env(&temp_dir, Some(&server.uri()));
+    let mut config = jira_core::config::JiraConfig::load().unwrap();
+    config.smart_checklist_enabled = true;
+    config.save().unwrap();
+    let checklist: Value = serde_json::from_str(include_str!(
+        "../../../jira-core/tests/fixtures/smart-checklist.json"
+    ))
+    .unwrap();
+    Mock::given(method("GET"))
+        .and(path("/rest/railsware/1.0/checklist"))
+        .and(query_param("issueKey", "PROJ-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&checklist))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/rest/railsware/1.0/checklist/42"))
+        .and(wiremock::matchers::body_json(
+            json!([{"id":102,"status":{"id":37},"mandatory":false}]),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&checklist))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let args: ChecklistUpdateArgs = serde_json::from_value(
+        json!({"issue_key":"PROJ-1","updates":[{"id":102,"status_id":37,"mandatory":false}]}),
+    )
+    .unwrap();
+    let result = JiraApp.checklist_update(args).await.unwrap();
+    assert_eq!(result["checklists"][0]["checklistId"], 42);
+    clear_test_env();
+}
+
+#[tokio::test]
+#[serial]
+async fn checklist_issue_view_is_opt_in_and_propagates_plugin_errors() {
+    use crate::models::IssueViewArgs;
+    let temp_dir = TempDir::new().unwrap();
+    let server = MockServer::start().await;
+    set_test_env(&temp_dir, Some(&server.uri()));
+    let mut config = jira_core::config::JiraConfig::load().unwrap();
+    config.smart_checklist_enabled = true;
+    config.save().unwrap();
+    Mock::given(method("GET"))
+        .and(path("/rest/api/3/issue/PROJ-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(sample_issue()))
+        .expect(4)
+        .mount(&server)
+        .await;
+    let result = JiraApp
+        .issue_view(IssueViewArgs {
+            key: "PROJ-1".into(),
+            include_checklist: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(result["summary"], "Sample issue");
+    assert!(result.get("checklists").is_none());
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    let result = JiraApp
+        .issue_view(IssueViewArgs {
+            key: "PROJ-1".into(),
+            include_checklist: Some(false),
+        })
+        .await
+        .unwrap();
+    assert!(result.get("checklists").is_none());
+    assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    let checklist: Value = serde_json::from_str(include_str!(
+        "../../../jira-core/tests/fixtures/smart-checklist.json"
+    ))
+    .unwrap();
+    Mock::given(method("GET"))
+        .and(path("/rest/railsware/1.0/checklist"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(checklist))
+        .up_to_n_times(1)
+        .expect(1)
+        .mount(&server)
+        .await;
+    let result = JiraApp
+        .issue_view(IssueViewArgs {
+            key: "PROJ-1".into(),
+            include_checklist: Some(true),
+        })
+        .await
+        .unwrap();
+    assert_eq!(result["key"], "PROJ-1");
+    assert_eq!(result["checklists"][0]["checklistId"], 42);
+    Mock::given(method("GET"))
+        .and(path("/rest/railsware/1.0/checklist"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("Smart Checklist unavailable"))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let err = JiraApp
+        .issue_view(IssueViewArgs {
+            key: "PROJ-1".into(),
+            include_checklist: Some(true),
+        })
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Smart Checklist unavailable"));
+    clear_test_env();
+}
+
+#[tokio::test]
+#[serial]
 async fn destructive_actions_require_confirm() {
     let err = JiraApp
         .issue_delete(IssueDeleteArgs {

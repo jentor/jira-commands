@@ -76,11 +76,46 @@ The MCP server includes tools for:
 - bulk transition, bulk update, and archive flows
 - plans
 - raw Jira REST API requests
+- Smart Checklist Data Center: checklist items, history, and global/project templates
+
+### Smart Checklist Data Center
+
+The public Railsware API addresses only the **Default Checklist tab** and uses the active Jira profile.
+History requires plugin v6.5.0+. No TUI or private plugin endpoints are used.
+This integration is disabled by default. Set `smart_checklist_enabled = true` in the active profile's TOML configuration,
+or run `jirac config set smart_checklist_enabled true`, then restart `jirac-mcp`.
+When disabled, no `jira_checklist_*` tools are advertised, and `jira_issue_view` rejects `include_checklist: true` before making a Jira request.
+
+| Tools | Arguments |
+| --- | --- |
+| `jira_checklist_view` | `issue_key`, optional `checklist_id` |
+| `jira_checklist_history` | `issue_key` |
+| `jira_checklist_append` | `issue_key`, `text`, optional `checklist_id` |
+| `jira_checklist_replace` | Same as append, plus `force: true` |
+| `jira_checklist_update` | `issue_key`, `updates`, optional `checklist_id` |
+| `jira_checklist_clear` | `issue_key`, optional `checklist_id`, `force: true` |
+| `jira_checklist_template_list` | Optional `project_id`, `global`, `query`, `order_by`, `reversed`, `page` |
+| `jira_checklist_template_view` | `template_id` |
+| `jira_checklist_template_fields` | No arguments |
+| `jira_checklist_template_create` | `template` object in the plugin JSON format |
+| `jira_checklist_template_update` | `template_id`, `template` object |
+| `jira_checklist_template_delete` | `template_id`, optional `project_id`, `page`, `force: true` |
+| `jira_checklist_template_apply` | `issue_key`, `template_id`, optional `checklist_id` |
+
+`updates` is an array of `{id, label?, status_id?, rank?, level?, mandatory?}`.
+Use server item/status IDs from checklist responses, not fixed status-name mappings.
+Text is passed unchanged, preserving the plugin's heading/list/mention/explanation syntax.
+Template JSON requires `name` and `scope`; it can include `value`, `enabled`, `conditions`, `trigger`, and `projectId`.
+Omitting `page` collects all template pages (maximum 500). With `project_id`, `global: true` selects applicable global templates;
+otherwise project-local templates are listed. Multiple returned checklists require `checklist_id` for mutations.
+
+`jira_issue_view` accepts optional `include_checklist: true` and adds a `checklists` array to the existing issue result.
+Without it, no plugin request is made. An explicitly requested checklist failure is returned as an error.
 
 ## Notes
 
 - Current focus is tools, not prompts/resources/UI.
-- Destructive operations require `confirm: true`.
+- Destructive operations require `confirm: true`; destructive `jira_checklist_*` tools require `force: true`.
 - `jira_issue_clone` can optionally delete the source issue with `move_original: true`, but only when `confirm: true` is also set.
 - Attachment uploads support local file paths or inline base64 payloads.
 

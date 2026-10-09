@@ -367,6 +367,9 @@ pub enum IssueCommand {
         /// Include fix-version backlog preview for this issue
         #[arg(long)]
         versions: bool,
+        /// Include Smart Checklist Data Center's Default Checklist tab
+        #[arg(long)]
+        checklist: bool,
         /// Maximum number of backlog issues to preview per fix version
         #[arg(long, default_value = "5", value_name = "N")]
         version_limit: u32,
@@ -1416,9 +1419,10 @@ pub async fn handle(
         IssueCommand::View {
             key,
             versions,
+            checklist,
             version_limit,
             json,
-        } => view_issue(client, key, versions, version_limit, json).await,
+        } => view_issue(client, key, versions, version_limit, json, checklist).await,
         IssueCommand::Versions {
             project,
             version,
@@ -1857,7 +1861,11 @@ async fn view_issue(
     versions: bool,
     version_limit: u32,
     json: bool,
+    checklist: bool,
 ) -> Result<()> {
+    if checklist {
+        client.ensure_smart_checklist_enabled()?;
+    }
     let spinner = spinner_new(format!("Fetching {key}..."));
     let issue = client
         .get_issue(&key)
@@ -1865,8 +1873,23 @@ async fn view_issue(
         .context("Failed to fetch issue")?;
     spinner.finish_and_clear();
 
+    let checklists = if checklist {
+        Some(
+            client
+                .get_smart_checklists(&key)
+                .await
+                .context("Failed to fetch Smart Checklist")?,
+        )
+    } else {
+        None
+    };
+
     if json {
-        println!("{}", serde_json::to_string_pretty(&issue)?);
+        let mut value = serde_json::to_value(&issue)?;
+        if let Some(checklists) = &checklists {
+            value["checklists"] = serde_json::to_value(&checklists.checklists)?;
+        }
+        println!("{}", serde_json::to_string_pretty(&value)?);
         return Ok(());
     }
 
@@ -1934,6 +1957,11 @@ async fn view_issue(
                 println!("  {line}");
             }
         }
+    }
+
+    if let Some(checklists) = &checklists {
+        println!();
+        super::checklist::print_checklists(checklists, false)?;
     }
 
     Ok(())

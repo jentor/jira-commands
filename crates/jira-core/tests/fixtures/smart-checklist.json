@@ -1,0 +1,21 @@
+{
+  "checklists": [{
+    "checklistId": 42,
+    "issueId": 10001,
+    "mentionedUsers": {"developer": "developer"},
+    "items": [{
+      "id": 101, "checklistId": 42, "label": "Release preparation", "rank": 0,
+      "quotes": [], "assignees": [], "mandatory": false,
+      "value": "# Release preparation", "level": 1, "type": "HEADING", "isCheckbox": false
+    }, {
+      "id": 102, "checklistId": 42,
+      "label": "Review [jira cli](https://example.com/projects/jira) @developer", "rank": 1,
+      "status": {"id": 1, "rank": 0, "statusState": "UNCHECKED", "name": "TO DO", "color": "GRAY", "default": true},
+      "quotes": [{"id": 2, "rank": 1, "text": "* Review changes\n* Run checks", "label": "Explanation", "value": "Explanation"}],
+      "assignees": [{"id": 9, "userName": "developer", "displayName": "Developer"}],
+      "history": {"id": 7, "type": "ITEM_UPDATED"},
+      "mandatory": true, "value": "Review jira cli @developer", "type": "item", "isCheckbox": true
+    }],
+    "futureField": {"keep": true}
+  }]
+}

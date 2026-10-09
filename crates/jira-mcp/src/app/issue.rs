@@ -13,7 +13,7 @@ use crate::{
         BulkTransitionArgs, BulkUpdateArgs, IssueAttachArgs, IssueCloneArgs, IssueCreateArgs,
         IssueDeleteArgs, IssueFieldsArgs, IssueKeyArgs, IssueListArgs, IssueMoveArgs,
         IssueNotificationsArgs, IssueStandupArgs, IssueTransitionArgs, IssueTypesListArgs,
-        IssueUpdateArgs, SearchUsersArgs, SprintSummaryArgs,
+        IssueUpdateArgs, IssueViewArgs, SearchUsersArgs, SprintSummaryArgs,
     },
 };
 
@@ -203,10 +203,18 @@ impl JiraApp {
         }))
     }
 
-    pub async fn issue_view(&self, args: IssueKeyArgs) -> AppResult<Value> {
+    pub async fn issue_view(&self, args: IssueViewArgs) -> AppResult<Value> {
         let client = self.build_client()?;
+        if args.include_checklist.unwrap_or(false) {
+            client.ensure_smart_checklist_enabled()?;
+        }
         let issue = client.get_issue(&args.key).await?;
-        to_value(issue)
+        let mut value = to_value(issue)?;
+        if args.include_checklist.unwrap_or(false) {
+            value["checklists"] =
+                to_value(client.get_smart_checklists(&args.key).await?.checklists)?;
+        }
+        Ok(value)
     }
 
     pub async fn issue_types_list(&self, args: IssueTypesListArgs) -> AppResult<Value> {

@@ -84,6 +84,10 @@ impl JiraClient {
         &self.config.base_url
     }
 
+    pub fn ensure_smart_checklist_enabled(&self) -> Result<()> {
+        self.config.ensure_smart_checklist_enabled()
+    }
+
     fn platform_url(&self, path: &str) -> String {
         format!(
             "{}/rest/api/{}{}",
@@ -2083,6 +2087,7 @@ mod tests {
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         })
     }
 
@@ -2183,6 +2188,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 2,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let info = client.get_server_info().await.expect("server info");
@@ -2254,6 +2260,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let info = client.get_server_info().await.expect("server info");
@@ -2292,6 +2299,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let fields = client
@@ -2345,6 +2353,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let fields = client
@@ -3430,6 +3439,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 2,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let issue = client
@@ -3483,6 +3493,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         // Test list
@@ -3553,6 +3564,7 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             api_version: 3,
             default_issue_limit: None,
             ca_bundle: None,
+            smart_checklist_enabled: false,
         });
 
         let issue = client.get_issue("TEST-1").await.expect("get issue");

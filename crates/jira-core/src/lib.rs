@@ -1,5 +1,6 @@
 pub mod adf;
 pub mod auth;
+pub mod checklist;
 pub mod client;
 pub mod config;
 pub mod error;

@@ -19,15 +19,19 @@ use crate::{
     models::{
         ApiRequestArgs, ArchiveArgs, AttachmentDeleteArgs, AttachmentDownloadArgs,
         AttachmentListArgs, AuthSetCredentialsArgs, BatchArgs, BoardGetArgs, BoardIssuesArgs,
-        BoardListArgs, BulkCommentArgs, BulkTransitionArgs, BulkUpdateArgs, CommentAddArgs,
-        IssueAttachArgs, IssueCloneArgs, IssueCreateArgs, IssueDeleteArgs, IssueFieldsArgs,
-        IssueKeyArgs, IssueLinkCreateArgs, IssueLinkDeleteArgs, IssueListArgs, IssueMoveArgs,
-        IssueNotificationsArgs, IssueStandupArgs, IssueTransitionArgs, IssueTypesListArgs,
-        IssueUpdateArgs, JqlBuildArgs, NotificationsMarkReadArgs, ProjectKeyArgs,
-        ProjectVersionCreateArgs, ProjectVersionUpdateArgs, RemoteLinkAddArgs,
-        RemoteLinkDeleteArgs, SearchUsersArgs, SprintAddIssueArgs, SprintCreateArgs,
-        SprintDeleteArgs, SprintListArgs, SprintSummaryArgs, SprintUpdateArgs, ToolResponse,
-        WatcherAddArgs, WatcherRemoveArgs, WorklogAddArgs, WorklogDeleteArgs,
+        BoardListArgs, BulkCommentArgs, BulkTransitionArgs, BulkUpdateArgs, ChecklistAppendArgs,
+        ChecklistClearArgs, ChecklistHistoryArgs, ChecklistReplaceArgs, ChecklistTargetArgs,
+        ChecklistTemplateApplyArgs, ChecklistTemplateCreateArgs, ChecklistTemplateDeleteArgs,
+        ChecklistTemplateIdArgs, ChecklistTemplateListArgs, ChecklistTemplateUpdateArgs,
+        ChecklistUpdateArgs, CommentAddArgs, IssueAttachArgs, IssueCloneArgs, IssueCreateArgs,
+        IssueDeleteArgs, IssueFieldsArgs, IssueKeyArgs, IssueLinkCreateArgs, IssueLinkDeleteArgs,
+        IssueListArgs, IssueMoveArgs, IssueNotificationsArgs, IssueStandupArgs,
+        IssueTransitionArgs, IssueTypesListArgs, IssueUpdateArgs, IssueViewArgs, JqlBuildArgs,
+        NotificationsMarkReadArgs, ProjectKeyArgs, ProjectVersionCreateArgs,
+        ProjectVersionUpdateArgs, RemoteLinkAddArgs, RemoteLinkDeleteArgs, SearchUsersArgs,
+        SprintAddIssueArgs, SprintCreateArgs, SprintDeleteArgs, SprintListArgs, SprintSummaryArgs,
+        SprintUpdateArgs, ToolResponse, WatcherAddArgs, WatcherRemoveArgs, WorklogAddArgs,
+        WorklogDeleteArgs,
     },
 };
 
@@ -39,9 +43,20 @@ pub struct JiraMcpServer {
 
 impl JiraMcpServer {
     pub fn new() -> Self {
+        let mut tool_router = Self::tool_router();
+        if !jira_core::config::JiraConfig::load()
+            .map(|config| config.smart_checklist_enabled)
+            .unwrap_or(false)
+        {
+            for tool in tool_router.list_all() {
+                if tool.name.starts_with("jira_checklist_") {
+                    tool_router.remove_route(&tool.name);
+                }
+            }
+        }
         Self {
             app: JiraApp,
-            tool_router: Self::tool_router(),
+            tool_router,
         }
     }
 
@@ -114,13 +129,153 @@ impl ServerHandler for JiraMcpServer {
                     .with_description("Typed Jira tools for MCP clients powered by jira-core"),
             )
             .with_instructions(
-                "Use the jira_* tools for Jira issue operations, worklogs, plans, auth, and raw REST access. Destructive tools require confirm=true.",
+                "Use the jira_* tools for Jira issue operations, worklogs, plans, auth, Smart Checklist Data Center (Default tab only), and raw REST access. Destructive tools require confirm=true; destructive jira_checklist_* tools require force=true.",
             )
     }
 }
 
 #[tool_router(router = tool_router)]
 impl JiraMcpServer {
+    #[tool(
+        name = "jira_checklist_view",
+        description = "Read Smart Checklist Data Center's Default Checklist, with item and status IDs"
+    )]
+    pub async fn jira_checklist_view(
+        &self,
+        Parameters(args): Parameters<ChecklistTargetArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_view(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_history",
+        description = "Read Smart Checklist history (Data Center 6.5.0+)"
+    )]
+    pub async fn jira_checklist_history(
+        &self,
+        Parameters(args): Parameters<ChecklistHistoryArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_history(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_append",
+        description = "Append Smart Checklist text unchanged to the Default Checklist"
+    )]
+    pub async fn jira_checklist_append(
+        &self,
+        Parameters(args): Parameters<ChecklistAppendArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_append(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_replace",
+        description = "Replace every Default Checklist item; requires force=true"
+    )]
+    pub async fn jira_checklist_replace(
+        &self,
+        Parameters(args): Parameters<ChecklistReplaceArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_replace(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_update",
+        description = "Update checklist items by ID: label, status_id, rank, level, mandatory"
+    )]
+    pub async fn jira_checklist_update(
+        &self,
+        Parameters(args): Parameters<ChecklistUpdateArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_update(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_clear",
+        description = "Delete every Default Checklist item; requires force=true"
+    )]
+    pub async fn jira_checklist_clear(
+        &self,
+        Parameters(args): Parameters<ChecklistClearArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_clear(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_list",
+        description = "List global or project Smart Checklist templates; omit page to fetch all pages"
+    )]
+    pub async fn jira_checklist_template_list(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateListArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_list(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_view",
+        description = "Read a Smart Checklist template and its full configuration"
+    )]
+    pub async fn jira_checklist_template_view(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateIdArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_view(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_fields",
+        description = "List fields available for Smart Checklist template conditions"
+    )]
+    pub async fn jira_checklist_template_fields(&self) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_fields().await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_create",
+        description = "Create a Smart Checklist template using plugin JSON (name/scope/conditions/trigger)"
+    )]
+    pub async fn jira_checklist_template_create(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateCreateArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_create(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_update",
+        description = "Update a Smart Checklist template using plugin JSON (name and scope required)"
+    )]
+    pub async fn jira_checklist_template_update(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateUpdateArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_update(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_delete",
+        description = "Delete a Smart Checklist template; requires force=true"
+    )]
+    pub async fn jira_checklist_template_delete(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateDeleteArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_delete(args).await)
+    }
+
+    #[tool(
+        name = "jira_checklist_template_apply",
+        description = "Apply a server template to an issue's Default Checklist"
+    )]
+    pub async fn jira_checklist_template_apply(
+        &self,
+        Parameters(args): Parameters<ChecklistTemplateApplyArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.checklist_template_apply(args).await)
+    }
+
     #[tool(
         name = "jira_auth_status",
         description = "Show Jira auth configuration, token presence, and config path"
@@ -225,7 +380,7 @@ impl JiraMcpServer {
     )]
     pub async fn jira_issue_view(
         &self,
-        Parameters(args): Parameters<IssueKeyArgs>,
+        Parameters(args): Parameters<IssueViewArgs>,
     ) -> Result<Json<ToolResponse>, ErrorData> {
         self.respond(self.app.issue_view(args).await)
     }
@@ -885,11 +1040,30 @@ mod tests {
         .expect("object")
     }
 
+    #[test]
+    #[serial]
+    fn checklist_tools_are_not_registered_when_feature_is_disabled() {
+        let temp_dir = TempDir::new().unwrap();
+        set_test_env(&temp_dir);
+        let server = JiraMcpServer::new();
+        assert!(server
+            .tool_router
+            .list_all()
+            .iter()
+            .all(|tool| !tool.name.starts_with("jira_checklist_")));
+        assert!(!server.tool_router.has_route("jira_checklist_clear"));
+        assert!(server.tool_router.has_route("jira_issue_view"));
+        clear_test_env();
+    }
+
     #[tokio::test]
     #[serial]
     async fn stdio_transport_smoke_test() -> anyhow::Result<()> {
         let temp_dir = TempDir::new()?;
         set_test_env(&temp_dir);
+        let mut config = jira_core::config::JiraConfig::load()?;
+        config.smart_checklist_enabled = true;
+        config.save()?;
 
         let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
         let server_task: tokio::task::JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
@@ -919,6 +1093,40 @@ mod tests {
         assert!(tools.iter().any(|tool| tool.name == "jira_issue_move"));
         assert!(tools.iter().any(|tool| tool.name == "jira_whoami"));
         assert!(tools.iter().any(|tool| tool.name == "jira_server_info"));
+        for name in [
+            "view",
+            "history",
+            "append",
+            "replace",
+            "update",
+            "clear",
+            "template_list",
+            "template_view",
+            "template_fields",
+            "template_create",
+            "template_update",
+            "template_delete",
+            "template_apply",
+        ] {
+            let name = format!("jira_checklist_{name}");
+            assert!(tools.iter().any(|tool| tool.name == name), "missing {name}");
+        }
+        let view = tools
+            .iter()
+            .find(|tool| tool.name == "jira_issue_view")
+            .unwrap();
+        assert!(view.input_schema["properties"]
+            .get("include_checklist")
+            .is_some());
+        let replace = tools
+            .iter()
+            .find(|tool| tool.name == "jira_checklist_replace")
+            .unwrap();
+        assert!(replace.input_schema["properties"]
+            .get("issue_key")
+            .is_some());
+        assert!(replace.input_schema["properties"].get("text").is_some());
+        assert!(replace.input_schema["properties"].get("force").is_some());
 
         client
             .call_tool(CallToolRequestParams::new("jira_auth_status"))

@@ -24,6 +24,7 @@ jirac auth login
 | ----------------------- | --------------------------------------- |
 | `/jira:list-issues`     | List issues by project or JQL           |
 | `/jira:view-issue`      | View full issue detail                  |
+| `/jira:checklist`       | Manage Smart Checklist items, history, and templates (runtime opt-in) |
 | `/jira:create-issue`    | Create a new issue                      |
 | `/jira:update-issue`    | Update an existing issue                |
 | `/jira:transition`      | Transition an issue                     |

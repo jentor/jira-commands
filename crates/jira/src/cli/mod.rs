@@ -1,6 +1,7 @@
 pub mod api;
 pub mod auth;
 pub mod board;
+pub mod checklist;
 pub mod config;
 pub mod interactive;
 pub mod issue;

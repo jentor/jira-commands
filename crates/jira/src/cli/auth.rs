@@ -264,6 +264,7 @@ async fn login(args: LoginArgs) -> Result<()> {
         api_version: 0,
         default_issue_limit: None,
         ca_bundle,
+        smart_checklist_enabled: false,
     };
 
     if config.requires_user_identity() {
@@ -299,6 +300,10 @@ async fn login(args: LoginArgs) -> Result<()> {
         .filter(|name| !name.trim().is_empty())
         .unwrap_or_else(|| derive_profile_name(&config));
     config.profile_name = Some(profile_name.clone());
+    config.smart_checklist_enabled = JiraProfilesFile::load()?
+        .profiles
+        .get(&profile_name)
+        .is_some_and(|profile| profile.smart_checklist_enabled);
     config.save().context("Failed to save config")?;
 
     println!(

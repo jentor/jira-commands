@@ -43,6 +43,7 @@ jirac auth login
 |---|---|
 | `/jira:list-issues` | List issues by project, assignee, or custom JQL |
 | `/jira:view-issue` | View full issue detail — description, status, assignee, attachments |
+| `/jira:checklist` | Manage Smart Checklist Data Center items, history, and templates (runtime opt-in) |
 | `/jira:create-issue` | Create a new issue with interactive field prompts |
 | `/jira:update-issue` | Update summary, description, assignee, labels, versions, or custom fields |
 | `/jira:transition` | Move an issue to a new status (e.g. In Progress, Done) |
@@ -128,6 +129,10 @@ Claude calls `/jira:api` with the appropriate REST endpoint and shows the raw JS
 ## Configuration
 
 Credentials are stored at `~/.config/jira/config.toml` after running `jirac auth login`. The plugin reads from the same config — no extra setup needed.
+
+Smart Checklist Data Center support is disabled by default. Enable it for the active profile with
+`jirac config set smart_checklist_enabled true`, or add `smart_checklist_enabled = true` under that profile in TOML.
+The `/jira:checklist` skill uses the Default Checklist tab only.
 
 You can also use environment variables:
 

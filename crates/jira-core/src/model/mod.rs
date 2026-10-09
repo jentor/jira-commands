@@ -1,5 +1,6 @@
 pub mod attachment;
 pub mod board;
+pub mod checklist;
 pub mod comment;
 pub mod component;
 pub mod field;
@@ -16,6 +17,7 @@ pub mod worklog;
 
 pub use attachment::Attachment;
 pub use board::Board;
+pub use checklist::*;
 pub use comment::Comment;
 pub use component::Component;
 pub use field::{Field, FieldKind, FieldValue};

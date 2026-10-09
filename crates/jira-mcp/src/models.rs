@@ -65,6 +65,109 @@ pub struct IssueKeyArgs {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct IssueViewArgs {
+    pub key: String,
+    pub include_checklist: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTargetArgs {
+    pub issue_key: String,
+    pub checklist_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistHistoryArgs {
+    pub issue_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistAppendArgs {
+    #[serde(flatten)]
+    pub target: ChecklistTargetArgs,
+    /// Smart Checklist text, passed unchanged (not Markdown-to-ADF converted).
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistReplaceArgs {
+    #[serde(flatten)]
+    pub input: ChecklistAppendArgs,
+    pub force: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistClearArgs {
+    #[serde(flatten)]
+    pub target: ChecklistTargetArgs,
+    pub force: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ChecklistItemPatch {
+    pub id: u64,
+    pub label: Option<String>,
+    pub status_id: Option<u64>,
+    pub rank: Option<u32>,
+    pub level: Option<u32>,
+    pub mandatory: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistUpdateArgs {
+    #[serde(flatten)]
+    pub target: ChecklistTargetArgs,
+    pub updates: Vec<ChecklistItemPatch>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateListArgs {
+    pub project_id: Option<u64>,
+    pub global: Option<bool>,
+    pub query: Option<String>,
+    pub order_by: Option<String>,
+    pub reversed: Option<bool>,
+    /// Omit to collect all pages, with a 500-page safeguard.
+    pub page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateIdArgs {
+    pub template_id: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateCreateArgs {
+    /// Plugin JSON format: name and scope required; value, enabled, conditions, trigger optional.
+    #[schemars(schema_with = "any_json_object")]
+    pub template: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateUpdateArgs {
+    pub template_id: u64,
+    /// Plugin JSON format: include name and scope, and projectId for project admin operations.
+    #[schemars(schema_with = "any_json_object")]
+    pub template: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateDeleteArgs {
+    pub template_id: u64,
+    pub project_id: Option<u64>,
+    pub page: Option<u32>,
+    pub force: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChecklistTemplateApplyArgs {
+    #[serde(flatten)]
+    pub target: ChecklistTargetArgs,
+    pub template_id: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NotificationsMarkReadArgs {
     /// Notification ids (the `id` field from jira_issue_notifications entries).
     pub ids: Vec<String>,
