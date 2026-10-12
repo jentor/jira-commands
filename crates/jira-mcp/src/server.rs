@@ -23,15 +23,16 @@ use crate::{
         ChecklistClearArgs, ChecklistHistoryArgs, ChecklistReplaceArgs, ChecklistTargetArgs,
         ChecklistTemplateApplyArgs, ChecklistTemplateCreateArgs, ChecklistTemplateDeleteArgs,
         ChecklistTemplateIdArgs, ChecklistTemplateListArgs, ChecklistTemplateUpdateArgs,
-        ChecklistUpdateArgs, CommentAddArgs, IssueAttachArgs, IssueCloneArgs, IssueCreateArgs,
-        IssueDeleteArgs, IssueFieldsArgs, IssueKeyArgs, IssueLinkCreateArgs, IssueLinkDeleteArgs,
-        IssueListArgs, IssueMoveArgs, IssueNotificationsArgs, IssueStandupArgs,
-        IssueTransitionArgs, IssueTypesListArgs, IssueUpdateArgs, IssueViewArgs, JqlBuildArgs,
-        NotificationsMarkReadArgs, ProjectKeyArgs, ProjectVersionCreateArgs,
-        ProjectVersionUpdateArgs, RemoteLinkAddArgs, RemoteLinkDeleteArgs, SearchUsersArgs,
-        SprintAddIssueArgs, SprintCreateArgs, SprintDeleteArgs, SprintListArgs, SprintSummaryArgs,
+        ChecklistUpdateArgs, CommentAddArgs, CommentDeleteArgs, CommentUpdateArgs, IssueAttachArgs,
+        IssueCloneArgs, IssueCreateArgs, IssueDeleteArgs, IssueFieldsArgs, IssueKeyArgs,
+        IssueLinkCreateArgs, IssueLinkDeleteArgs, IssueListArgs, IssueMoveArgs,
+        IssueNotificationsArgs, IssueStandupArgs, IssueTransitionArgs, IssueTypesListArgs,
+        IssueUpdateArgs, IssueViewArgs, JqlBuildArgs, NotificationsMarkReadArgs, ProjectKeyArgs,
+        ProjectVersionCreateArgs, ProjectVersionUpdateArgs, RemoteLinkAddArgs,
+        RemoteLinkDeleteArgs, SearchUsersArgs, SprintAddIssueArgs, SprintBacklogIssueArgs,
+        SprintCreateArgs, SprintDeleteArgs, SprintListArgs, SprintRankIssueArgs, SprintSummaryArgs,
         SprintUpdateArgs, ToolResponse, WatcherAddArgs, WatcherRemoveArgs, WorklogAddArgs,
-        WorklogDeleteArgs,
+        WorklogDeleteArgs, WorklogUpdateArgs,
     },
 };
 
@@ -474,6 +475,28 @@ impl JiraMcpServer {
     }
 
     #[tool(
+        name = "jira_sprint_remove_issue",
+        description = "Move an issue from its sprint back to the board backlog"
+    )]
+    pub async fn jira_sprint_remove_issue(
+        &self,
+        Parameters(args): Parameters<SprintBacklogIssueArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.sprint_remove_issue(args).await)
+    }
+
+    #[tool(
+        name = "jira_sprint_rank_issue",
+        description = "Rank an issue immediately before or after another issue on its board"
+    )]
+    pub async fn jira_sprint_rank_issue(
+        &self,
+        Parameters(args): Parameters<SprintRankIssueArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.sprint_rank_issue(args).await)
+    }
+
+    #[tool(
         name = "jira_watcher_list",
         description = "List watchers on a Jira issue"
     )]
@@ -751,6 +774,28 @@ save_path must be an absolute path inside $HOME unless force_path=true."
     }
 
     #[tool(
+        name = "jira_comment_update",
+        description = "Replace the Markdown body of a Jira issue comment"
+    )]
+    pub async fn jira_comment_update(
+        &self,
+        Parameters(args): Parameters<CommentUpdateArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.comment_update(args).await)
+    }
+
+    #[tool(
+        name = "jira_comment_delete",
+        description = "Delete a Jira issue comment; requires confirm=true"
+    )]
+    pub async fn jira_comment_delete(
+        &self,
+        Parameters(args): Parameters<CommentDeleteArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.comment_delete(args).await)
+    }
+
+    #[tool(
         name = "jira_issue_bulk_comment",
         description = "Add the same comment to multiple Jira issues selected by JQL or explicit keys; requires confirm=true"
     )]
@@ -844,6 +889,17 @@ save_path must be an absolute path inside $HOME unless force_path=true."
         Parameters(args): Parameters<WorklogAddArgs>,
     ) -> Result<Json<ToolResponse>, ErrorData> {
         self.respond(self.app.worklog_add(args).await)
+    }
+
+    #[tool(
+        name = "jira_worklog_update",
+        description = "Update provided fields on a Jira worklog entry"
+    )]
+    pub async fn jira_worklog_update(
+        &self,
+        Parameters(args): Parameters<WorklogUpdateArgs>,
+    ) -> Result<Json<ToolResponse>, ErrorData> {
+        self.respond(self.app.worklog_update(args).await)
     }
 
     #[tool(
