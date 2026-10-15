@@ -6,6 +6,9 @@ const MAX_RENDER_DEPTH: usize = 128;
 
 /// Convert an ADF (Atlassian Document Format) JSON value to plain text.
 pub fn adf_to_text(value: &Value) -> String {
+    if let Some(text) = value.as_str() {
+        return text.to_string();
+    }
     let mut output = String::new();
     render_node(value, &mut output, 0);
     output.trim_end().to_string()
@@ -277,7 +280,20 @@ fn expand_text_mentions(text: &str, mention_map: &[(String, String)]) -> Vec<Val
 /// Collect all mentioned Jira account IDs found in an ADF document.
 pub fn mentioned_account_ids(value: &Value) -> Vec<String> {
     let mut out = Vec::new();
-    collect_mentioned_account_ids(value, &mut out, 0);
+    if let Some(text) = value.as_str() {
+        for suffix in text.split("[~").skip(1) {
+            if let Some((name, _)) = suffix.split_once(']') {
+                if !name.is_empty()
+                    && !name.contains(['[', '\n'])
+                    && !out.iter().any(|id| id == name)
+                {
+                    out.push(name.to_string());
+                }
+            }
+        }
+    } else {
+        collect_mentioned_account_ids(value, &mut out, 0);
+    }
     out
 }
 

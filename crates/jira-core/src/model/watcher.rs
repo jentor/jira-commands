@@ -25,7 +25,11 @@ impl Watcher {
                 .and_then(|s| s.as_str())
                 .unwrap_or("")
                 .to_string(),
-            account_id: v.get("accountId")?.as_str()?.to_string(),
+            account_id: v
+                .get("accountId")
+                .or_else(|| v.get("name"))?
+                .as_str()?
+                .to_string(),
             display_name: v
                 .get("displayName")
                 .and_then(|n| n.as_str())

@@ -8,8 +8,8 @@ use serde_json::{json, Value};
 use tracing::{debug, warn};
 
 use crate::{
-    adf::markdown_to_adf,
-    config::{JiraAuthType, JiraConfig},
+    adf::{adf_to_text, markdown_to_adf},
+    config::{JiraAuthType, JiraConfig, JiraDeployment},
     error::{JiraError, Result},
     model::{
         attachment::Attachment,
@@ -38,6 +38,7 @@ const MAX_RETRIES: u32 = 3;
 struct MyselfResponse {
     #[serde(rename = "accountId")]
     account_id: Option<String>,
+    name: Option<String>,
     #[serde(rename = "timeZone")]
     time_zone: Option<String>,
 }
@@ -97,6 +98,47 @@ impl JiraClient {
         )
     }
 
+    fn user_id_field(&self) -> &'static str {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            "name"
+        } else {
+            "accountId"
+        }
+    }
+
+    fn text_body(&self, text: &str) -> Value {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            json!(text)
+        } else {
+            markdown_to_adf(text)
+        }
+    }
+
+    fn document_body(&self, mut document: Value) -> Value {
+        fn wiki_mentions(node: &mut Value, depth: usize) {
+            if depth > 128 {
+                return;
+            }
+            if node.get("type").and_then(Value::as_str) == Some("mention") {
+                if let Some(id) = node.pointer("/attrs/id").and_then(Value::as_str) {
+                    *node = json!({"type":"text", "text":format!("[~{id}]")});
+                    return;
+                }
+            }
+            if let Some(children) = node.get_mut("content").and_then(Value::as_array_mut) {
+                for child in children {
+                    wiki_mentions(child, depth + 1);
+                }
+            }
+        }
+        if self.config.deployment == JiraDeployment::DataCenter && document.is_object() {
+            wiki_mentions(&mut document, 0);
+            json!(adf_to_text(&document))
+        } else {
+            document
+        }
+    }
+
     fn platform_path(&self, path: &str) -> String {
         format!("/rest/api/{}{}", self.config.api_version, path)
     }
@@ -144,12 +186,17 @@ impl JiraClient {
             .await
     }
 
-    /// Get the current authenticated user's accountId.
+    /// Get the current user identity: Cloud accountId or Data Center username.
     pub async fn get_myself(&self) -> Result<String> {
         let me = self.get_myself_info().await?;
-        me.account_id.ok_or_else(|| JiraError::Api {
+        let identity = if self.config.deployment == JiraDeployment::DataCenter {
+            me.name
+        } else {
+            me.account_id
+        };
+        identity.ok_or_else(|| JiraError::Api {
             status: 0,
-            message: "Could not get accountId from /myself".into(),
+            message: "Could not get user identity from /myself".into(),
         })
     }
 
@@ -264,7 +311,7 @@ impl JiraClient {
         handle_response(response).await
     }
 
-    /// Search issues using JQL with cursor-based pagination.
+    /// Search issues using JQL. Continuation tokens are opaque; Data Center uses offsets.
     pub async fn search_issues(
         &self,
         jql: &str,
@@ -297,7 +344,19 @@ impl JiraClient {
         fields: &[&str],
     ) -> Result<SearchResult> {
         let headers = self.auth_headers()?;
-        let url = self.platform_url("/search/jql");
+        let data_center = self.config.deployment == JiraDeployment::DataCenter;
+        let url = self.platform_url(if data_center {
+            "/search"
+        } else {
+            "/search/jql"
+        });
+        let start_at = if data_center {
+            next_page_token.unwrap_or("0").parse::<u64>().map_err(|_| {
+                JiraError::Config("Invalid Data Center search continuation token".into())
+            })?
+        } else {
+            0
+        };
 
         let mut body = json!({
             "jql": jql,
@@ -305,7 +364,9 @@ impl JiraClient {
             "fields": fields,
         });
 
-        if let Some(token) = next_page_token {
+        if data_center {
+            body["startAt"] = json!(start_at);
+        } else if let Some(token) = next_page_token {
             body["nextPageToken"] = json!(token);
         }
 
@@ -316,9 +377,19 @@ impl JiraClient {
             .request(|| http.post(&url).headers(headers.clone()).json(&body))
             .await?;
 
+        let next_page_token = if data_center {
+            let next = raw.start_at.unwrap_or(start_at) + raw.issues.len() as u64;
+            if !raw.issues.is_empty() && raw.total.is_none_or(|total| next < total) {
+                Some(next.to_string())
+            } else {
+                None
+            }
+        } else {
+            raw.next_page_token
+        };
         Ok(SearchResult {
             issues: raw.issues.into_iter().map(|r| r.into_issue()).collect(),
-            next_page_token: raw.next_page_token,
+            next_page_token,
             total: raw.total,
         })
     }
@@ -391,7 +462,7 @@ impl JiraClient {
         let headers = self.auth_headers()?;
         let url = self.platform_url("/issue");
 
-        let description_adf = req.description.as_deref().map(markdown_to_adf);
+        let description_adf = req.description.as_deref().map(|text| self.text_body(text));
 
         let mut fields = json!({
             "project": { "key": req.project_key },
@@ -405,7 +476,7 @@ impl JiraClient {
 
         if let Some(assignee) = &req.assignee {
             let account_id = self.resolve_assignee_account_id(assignee).await?;
-            fields["assignee"] = json!({ "accountId": account_id });
+            fields["assignee"] = json!({ (self.user_id_field()): account_id });
         }
 
         if let Some(priority) = &req.priority {
@@ -439,13 +510,13 @@ impl JiraClient {
             fields["summary"] = json!(summary);
         }
         if let Some(adf) = &req.description_adf {
-            fields["description"] = adf.clone();
+            fields["description"] = self.document_body(adf.clone());
         } else if let Some(description) = &req.description {
-            fields["description"] = markdown_to_adf(description);
+            fields["description"] = self.text_body(description);
         }
         if let Some(assignee) = &req.assignee {
             let account_id = self.resolve_assignee_account_id(assignee).await?;
-            fields["assignee"] = json!({ "accountId": account_id });
+            fields["assignee"] = json!({ (self.user_id_field()): account_id });
         }
         if let Some(priority) = &req.priority {
             fields["priority"] = json!({ "name": priority });
@@ -575,9 +646,14 @@ impl JiraClient {
 
         let http = &self.http;
         self.request_no_body(|| {
-            http.delete(&url)
-                .headers(headers.clone())
-                .query(&[("accountId", account_id)])
+            http.delete(&url).headers(headers.clone()).query(&[(
+                if self.config.deployment == JiraDeployment::DataCenter {
+                    "username"
+                } else {
+                    "accountId"
+                },
+                account_id,
+            )])
         })
         .await
     }
@@ -609,6 +685,10 @@ impl JiraClient {
         }
 
         let http = &self.http;
+        if self.config.deployment == JiraDeployment::DataCenter {
+            let values = self.get_paged_values(&url, "values").await?;
+            return Ok(serde_json::from_value(json!(values))?);
+        }
         let resp: MetaResponse = self
             .request(|| http.get(&url).headers(headers.clone()))
             .await?;
@@ -687,9 +767,12 @@ impl JiraClient {
         }
 
         let http = &self.http;
-        let resp: FieldMetaResponse = self
-            .request(|| http.get(&url).headers(headers.clone()))
-            .await?;
+        let resp: FieldMetaResponse = if self.config.deployment == JiraDeployment::DataCenter {
+            serde_json::from_value(json!({"fields": self.get_paged_values(&url, "values").await?}))?
+        } else {
+            self.request(|| http.get(&url).headers(headers.clone()))
+                .await?
+        };
 
         let fields = match resp.fields {
             FieldCollection::Map(fields) => fields
@@ -748,9 +831,17 @@ impl JiraClient {
 
         let http = &self.http;
         self.request(|| {
-            http.get(&url)
-                .headers(headers.clone())
-                .query(&[("query", query), ("maxResults", "20")])
+            http.get(&url).headers(headers.clone()).query(&[
+                (
+                    if self.config.deployment == JiraDeployment::DataCenter {
+                        "username"
+                    } else {
+                        "query"
+                    },
+                    query,
+                ),
+                ("maxResults", "20"),
+            ])
         })
         .await
     }
@@ -857,6 +948,38 @@ impl JiraClient {
                 .get("completeDate")
                 .and_then(|v| v.as_str())
                 .map(str::to_owned),
+        })
+    }
+
+    async fn get_paged_values(&self, url: &str, field: &str) -> Result<Vec<Value>> {
+        let headers = self.auth_headers()?;
+        let mut values = Vec::new();
+        let mut start_at = 0usize;
+        for _ in 0..500 {
+            let response: Value = self
+                .request(|| {
+                    self.http
+                        .get(url)
+                        .headers(headers.clone())
+                        .query(&[("startAt", start_at), ("maxResults", 50)])
+                })
+                .await?;
+            let page = response
+                .get(field)
+                .and_then(Value::as_array)
+                .ok_or_else(|| JiraError::Api {
+                    status: 0,
+                    message: format!("Missing {field} array in paginated response"),
+                })?;
+            start_at += page.len();
+            values.extend_from_slice(page);
+            if Self::page_is_last(&response, page.len()) {
+                return Ok(values);
+            }
+        }
+        Err(JiraError::Api {
+            status: 0,
+            message: "Pagination exceeded 500 pages".into(),
         })
     }
 
@@ -1188,7 +1311,7 @@ impl JiraClient {
     pub async fn add_comment_adf(&self, issue_key: &str, adf: Value) -> Result<Comment> {
         let headers = self.auth_headers()?;
         let url = self.platform_url(&format!("/issue/{issue_key}/comment"));
-        let payload = json!({ "body": adf });
+        let payload = json!({ "body": self.document_body(adf) });
         let http = &self.http;
         let raw: Value = self
             .request(|| http.post(&url).headers(headers.clone()).json(&payload))
@@ -1275,7 +1398,8 @@ impl JiraClient {
 
         let description_adf = req
             .description_adf
-            .or_else(|| req.description.as_deref().map(markdown_to_adf));
+            .map(|adf| self.document_body(adf))
+            .or_else(|| req.description.as_deref().map(|text| self.text_body(text)));
 
         let mut fields = json!({
             "project": { "key": req.project_key },
@@ -1288,7 +1412,7 @@ impl JiraClient {
         }
         if let Some(assignee) = &req.assignee {
             let account_id = self.resolve_assignee_account_id(assignee).await?;
-            fields["assignee"] = json!({ "accountId": account_id });
+            fields["assignee"] = json!({ (self.user_id_field()): account_id });
         }
         if let Some(priority) = &req.priority {
             fields["priority"] = json!({ "name": priority });
@@ -1362,21 +1486,10 @@ impl JiraClient {
 
     /// List all comments for an issue.
     pub async fn get_comments(&self, issue_key: &str) -> Result<Vec<Comment>> {
-        let headers = self.auth_headers()?;
         let url = self.platform_url(&format!("/issue/{issue_key}/comment"));
 
-        #[derive(serde::Deserialize)]
-        struct CommentResponse {
-            comments: Vec<Value>,
-        }
-
-        let http = &self.http;
-        let resp: CommentResponse = self
-            .request(|| http.get(&url).headers(headers.clone()))
-            .await?;
-
-        Ok(resp
-            .comments
+        let values = self.get_paged_values(&url, "comments").await?;
+        Ok(values
             .iter()
             .filter_map(|v| Comment::from_value(v, issue_key))
             .collect())
@@ -1388,7 +1501,7 @@ impl JiraClient {
         let url = self.platform_url(&format!("/issue/{issue_key}/comment"));
 
         let payload = json!({
-            "body": markdown_to_adf(body)
+            "body": self.text_body(body)
         });
 
         let http = &self.http;
@@ -1406,21 +1519,10 @@ impl JiraClient {
 
     /// List all worklogs for an issue.
     pub async fn get_worklogs(&self, issue_key: &str) -> Result<Vec<Worklog>> {
-        let headers = self.auth_headers()?;
         let url = self.platform_url(&format!("/issue/{issue_key}/worklog"));
 
-        #[derive(serde::Deserialize)]
-        struct WorklogResponse {
-            worklogs: Vec<Value>,
-        }
-
-        let http = &self.http;
-        let resp: WorklogResponse = self
-            .request(|| http.get(&url).headers(headers.clone()))
-            .await?;
-
-        Ok(resp
-            .worklogs
+        let values = self.get_paged_values(&url, "worklogs").await?;
+        Ok(values
             .iter()
             .filter_map(|v| Worklog::from_value(v, issue_key))
             .collect())
@@ -1450,7 +1552,7 @@ impl JiraClient {
         });
 
         if let Some(c) = comment {
-            body["comment"] = markdown_to_adf(c);
+            body["comment"] = self.text_body(c);
         }
 
         let http = &self.http;
@@ -1629,7 +1731,10 @@ impl JiraClient {
         loop {
             iterations += 1;
             if iterations > MAX_ITERATIONS {
-                break;
+                return Err(JiraError::Api {
+                    status: 0,
+                    message: "Search pagination exceeded 500 pages".into(),
+                });
             }
 
             let result = self
@@ -1649,6 +1754,15 @@ impl JiraClient {
 
     /// Archive a batch of issues by key. Jira accepts up to 1000 per request.
     pub async fn archive_issues(&self, issue_keys: &[String]) -> Result<()> {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            let headers = self.auth_headers()?;
+            for key in issue_keys {
+                let url = self.platform_url(&format!("/issue/{key}/archive"));
+                self.request_no_body(|| self.http.put(&url).headers(headers.clone()))
+                    .await?;
+            }
+            return Ok(());
+        }
         if issue_keys.is_empty() {
             return Ok(());
         }
@@ -1676,6 +1790,11 @@ impl JiraClient {
         target_issue_type_id: &str,
         target_parent: Option<&str>,
     ) -> Result<Issue> {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            return Err(JiraError::Config(
+                "Native issue move/change-type is not supported by this client on Jira Data Center; use Jira's web interface".into(),
+            ));
+        }
         let mapping_key = match target_parent {
             Some(parent) => format!("{target_project_key},{target_issue_type_id},{parent}"),
             None => format!("{target_project_key},{target_issue_type_id}"),
@@ -1809,6 +1928,9 @@ impl JiraClient {
 
     /// Check if this Jira instance is Premium tier.
     pub async fn is_premium(&self) -> bool {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            return false;
+        }
         match self.get_server_info().await {
             Ok(info) => {
                 let license = info
@@ -1835,6 +1957,11 @@ impl JiraClient {
 
     /// List Jira Plans (requires Jira Premium / Advanced Roadmaps).
     pub async fn get_plans(&self) -> Result<Vec<Value>> {
+        if self.config.deployment == JiraDeployment::DataCenter {
+            return Err(JiraError::Config(
+                "Plans API is only supported for Jira Cloud".into(),
+            ));
+        }
         let headers = self.auth_headers()?;
         let url = self.platform_url("/plans/plan");
 
@@ -3389,66 +3516,6 @@ g99IHfQMr0eJiOF2iOCVFJL9xYwsYq5Z3xEHvPLzGhEUNjxMPRdXzrRGkp6UMOK+\n\
             JiraError::Api { message, .. } => assert!(message.contains("FAILED")),
             other => panic!("expected JiraError::Api, got {other:?}"),
         }
-    }
-
-    #[tokio::test]
-    async fn move_issue_uses_configured_api_version_for_data_center() {
-        let server = MockServer::start().await;
-
-        Mock::given(method("POST"))
-            .and(path("/rest/api/2/bulk/issues/move"))
-            .and(header("authorization", "Bearer dc-token"))
-            .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "taskId": "task-dc" })))
-            .mount(&server)
-            .await;
-
-        Mock::given(method("GET"))
-            .and(path("/rest/api/2/bulk/queue/task-dc"))
-            .and(header("authorization", "Bearer dc-token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "status": "COMPLETE" })))
-            .mount(&server)
-            .await;
-
-        Mock::given(method("GET"))
-            .and(path("/rest/api/2/issue/DC-1"))
-            .and(header("authorization", "Bearer dc-token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "id": "20001",
-                "key": "DC-1",
-                "fields": {
-                    "summary": "Moved issue",
-                    "status": { "name": "Done" },
-                    "issuetype": { "name": "Task" },
-                    "project": { "key": "OPS" },
-                    "created": "2023-01-01T00:00:00.000+0000",
-                    "updated": "2023-01-01T00:00:00.000+0000"
-                }
-            })))
-            .mount(&server)
-            .await;
-
-        let client = JiraClient::new(JiraConfig {
-            profile_name: Some("dc-main".into()),
-            base_url: server.uri(),
-            email: String::new(),
-            token: Some("dc-token".into()),
-            project: None,
-            timeout_secs: 30,
-            deployment: JiraDeployment::DataCenter,
-            auth_type: JiraAuthType::DataCenterPat,
-            api_version: 2,
-            default_issue_limit: None,
-            ca_bundle: None,
-            smart_checklist_enabled: false,
-        });
-
-        let issue = client
-            .move_issue("DC-1", "OPS", "10002", None)
-            .await
-            .expect("data center move should use api v2");
-
-        assert_eq!(issue.key, "DC-1");
-        assert_eq!(issue.project_key, "OPS");
     }
 
     #[tokio::test]

@@ -699,8 +699,8 @@ pub enum IssueCommand {
 
     /// Manage comments on an issue
     ///
-    /// List existing comments or add a new comment in Markdown.
-    /// Markdown is converted to ADF before sending to Jira.
+    /// List existing comments or add a new comment.
+    /// Cloud converts Markdown to ADF; Data Center accepts Jira wiki text.
     ///
     /// Examples:
     ///   jirac issue comment list PROJ-123

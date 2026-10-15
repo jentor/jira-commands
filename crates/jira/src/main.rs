@@ -9,8 +9,7 @@ use tracing_subscriber::{fmt, EnvFilter};
     name = "jirac",
     about = "jirac — terminal client for the Jira ecosystem",
     long_about = help_text::ROOT_LONG_ABOUT,
-    version,
-    args_conflicts_with_subcommands = true
+    version
 )]
 struct Cli {
     /// Issue key shortcut. Use with --web to open in Jira.
@@ -99,6 +98,10 @@ async fn main() -> Result<()> {
     }
 
     let cli = Cli::parse();
+    anyhow::ensure!(
+        cli.issue.is_none() || cli.command.is_none(),
+        "Issue shortcut cannot be combined with a subcommand"
+    );
     cli::interactive::init(cli.non_interactive);
     let update_notice = version_check::check_for_update().await;
 
@@ -225,4 +228,43 @@ fn build_client() -> Result<JiraClient> {
     }
 
     Ok(JiraClient::try_new(config)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_flags_work_before_and_after_subcommands() {
+        for args in [
+            vec![
+                "jirac",
+                "--non-interactive",
+                "-v",
+                "issue",
+                "list",
+                "--limit",
+                "1",
+            ],
+            vec![
+                "jirac",
+                "issue",
+                "list",
+                "--non-interactive",
+                "-v",
+                "--limit",
+                "1",
+            ],
+        ] {
+            let cli = Cli::try_parse_from(args).unwrap();
+            assert!(cli.non_interactive);
+            assert!(cli.verbose);
+            assert!(cli.issue.is_none());
+            assert!(matches!(cli.command, Some(Commands::Issue { .. })));
+        }
+        let cli = Cli::try_parse_from(["jirac", "IT-1", "--web"]).unwrap();
+        assert_eq!(cli.issue.as_deref(), Some("IT-1"));
+        assert!(cli.web);
+        assert!(cli.command.is_none());
+    }
 }

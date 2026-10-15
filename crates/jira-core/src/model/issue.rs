@@ -88,6 +88,7 @@ pub struct UpdateIssueRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
     pub issues: Vec<Issue>,
+    /// Opaque continuation: Cloud cursor or Data Center offset. Pass back unchanged.
     pub next_page_token: Option<String>,
     pub total: Option<u64>,
 }
@@ -202,6 +203,8 @@ impl RawIssue {
 /// Raw search response from Jira API
 #[derive(Debug, Deserialize)]
 pub(crate) struct RawSearchResponse {
+    #[serde(rename = "startAt")]
+    pub start_at: Option<u64>,
     pub issues: Vec<RawIssue>,
     #[serde(rename = "nextPageToken")]
     pub next_page_token: Option<String>,

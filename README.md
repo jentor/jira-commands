@@ -352,6 +352,16 @@ jirac auth login --profile client-dc
 jirac auth use client-dc
 ```
 
+### Data Center compatibility
+
+Data Center profiles use API v2 search with offset pagination, usernames for
+assignees and watchers, and paginated create metadata. Descriptions, comments,
+and worklog comments are sent as strings; pre-built ADF is converted to readable
+text, so rich formatting is not preserved. Use `[~username]` for mentions in text.
+Issue archiving uses the Data Center per-issue endpoint and requires Jira archive
+permissions. Native `move` / `change-type` and the Plans API are currently supported
+only for Cloud; use the Jira web interface for those operations on Data Center.
+
 ## Interactive TUI
 
 The TUI is a full-screen terminal interface for browsing and managing issues. Recent builds include a split master-detail layout, a project-level fix-version browser (`V`) with backlog preview plus in-place version creation (`n`) and metadata editing (`e`), a project-scoped Agile board picker (`B`), saved JQL picker, theme picker, server summary, config summary overlays, in-TUI modals for native issue type changes and project moves, both single (`w`) and bulk (`b`) worklog flows, and a self-watch shortcut (`W`) with watcher count rendered on the Summary tab. Press `?` inside the TUI for a complete shortcut reference.

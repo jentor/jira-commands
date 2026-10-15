@@ -2,6 +2,7 @@
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JiraUser {
+    #[serde(alias = "name")]
     pub account_id: String,
     #[serde(default)]
     pub display_name: Option<String>,

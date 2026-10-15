@@ -28,7 +28,7 @@ impl Comment {
                 .map(|s| s.to_string()),
             author_account_id: v
                 .get("author")
-                .and_then(|a| a.get("accountId"))
+                .and_then(|a| a.get("accountId").or_else(|| a.get("name")))
                 .and_then(|n| n.as_str())
                 .map(|s| s.to_string()),
             body: body_value.and_then(|body| {
@@ -38,10 +38,7 @@ impl Comment {
                     body.as_str().map(|s| s.to_string())
                 }
             }),
-            mentions: body_value
-                .filter(|body| body.is_object())
-                .map(mentioned_account_ids)
-                .unwrap_or_default(),
+            mentions: body_value.map(mentioned_account_ids).unwrap_or_default(),
             created: v
                 .get("created")
                 .and_then(|t| t.as_str())
