@@ -6,6 +6,14 @@ Format: [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`
 
 ---
 
+## [2.11.1](https://github.com/jentor/jira-commands/compare/v2.11.0...v2.11.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **data-center:** support search and core Jira operations ([a8a7e6a](https://github.com/jentor/jira-commands/commit/a8a7e6a59ad48fae38d3ee93a65da21bb1bc089f))
+* **data-center:** use text for edits and link comments ([f93a6ec](https://github.com/jentor/jira-commands/commit/f93a6ecaefbfcf3ec9a6859bccb44cbcf30627a5))
+
 ## [2.11.0](https://github.com/mulhamna/jira-commands/compare/v2.10.1...v2.11.0) (2026-10-11)
 
 
