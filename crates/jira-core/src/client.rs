@@ -1550,7 +1550,7 @@ impl JiraClient {
     ) -> Result<Comment> {
         let headers = self.auth_headers()?;
         let url = self.platform_url(&format!("/issue/{issue_key}/comment/{comment_id}"));
-        let payload = json!({ "body": markdown_to_adf(body) });
+        let payload = json!({ "body": self.text_body(body) });
         let http = &self.http;
         let raw: Value = self
             .request(|| http.put(&url).headers(headers.clone()).json(&payload))
@@ -1663,7 +1663,7 @@ impl JiraClient {
             "started": started,
         });
         if let Some(comment) = comment {
-            body["comment"] = markdown_to_adf(comment);
+            body["comment"] = self.text_body(comment);
         } else if let Some(existing_comment) = existing.get("comment") {
             body["comment"] = existing_comment.clone();
         }
@@ -2131,7 +2131,7 @@ impl JiraClient {
 
         if let Some(c) = comment {
             payload["comment"] = json!({
-                "body": crate::adf::markdown_to_adf(c)
+                "body": self.text_body(c)
             });
         }
 

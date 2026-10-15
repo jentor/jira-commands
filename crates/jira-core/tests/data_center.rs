@@ -374,3 +374,70 @@ fn data_center_wiki_text_and_mentions_remain_readable() {
         ["alice", "bob"]
     );
 }
+
+#[tokio::test]
+async fn data_center_comment_worklog_edits_and_link_comments_send_strings() {
+    let server = MockServer::start().await;
+    Mock::given(method("PUT"))
+        .and(path("/jira/rest/api/2/issue/IT-1/comment/1"))
+        .and(body_json(json!({"body":"Edited [~alice]"})))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"id":"1","body":"Edited [~alice]"})),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let existing = json!({"id":"1","timeSpent":"1h","started":"2026-10-15T10:00:00.000+0300","comment":"Keep me"});
+    Mock::given(method("GET"))
+        .and(path("/jira/rest/api/2/issue/IT-1/worklog/1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(&existing))
+        .expect(2)
+        .mount(&server)
+        .await;
+    for (comment, body) in [
+        (
+            Some("Edited"),
+            json!({"timeSpent":"1h","started":"2026-10-15T10:00:00.000+0300","comment":"Edited"}),
+        ),
+        (
+            None,
+            json!({"timeSpent":"2h","started":"2026-10-15T10:00:00.000+0300","comment":"Keep me"}),
+        ),
+    ] {
+        let mut response = body.clone();
+        response["id"] = json!("1");
+        Mock::given(method("PUT"))
+            .and(path("/jira/rest/api/2/issue/IT-1/worklog/1"))
+            .and(body_json(body))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&response))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let log = client(&server, JiraDeployment::DataCenter)
+            .update_worklog(
+                "IT-1",
+                "1",
+                if comment.is_some() { None } else { Some("2h") },
+                comment,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(log.comment, response["comment"].as_str().map(str::to_owned));
+        assert_eq!(log.time_spent, response["timeSpent"].as_str().unwrap());
+        assert_eq!(log.started, "2026-10-15T10:00:00.000+0300");
+    }
+    Mock::given(method("POST")).and(path("/jira/rest/api/2/issueLink"))
+        .and(body_json(json!({"type":{"name":"Blocks"},"inwardIssue":{"key":"IT-2"},"outwardIssue":{"key":"IT-1"},"comment":{"body":"Linked"}})))
+        .respond_with(ResponseTemplate::new(201)).expect(1).mount(&server).await;
+    let c = client(&server, JiraDeployment::DataCenter);
+    let comment = c
+        .update_comment("IT-1", "1", "Edited [~alice]")
+        .await
+        .unwrap();
+    assert_eq!(comment.body.as_deref(), Some("Edited [~alice]"));
+    assert_eq!(comment.mentions, ["alice"]);
+    c.link_issues("IT-1", "IT-2", "Blocks", Some("Linked"))
+        .await
+        .unwrap();
+}
